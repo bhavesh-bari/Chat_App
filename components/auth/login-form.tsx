@@ -39,7 +39,6 @@ export function LoginForm() {
     },
   });
 
-  // ✅ Fix: Remove the 'e' event parameter
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
 
@@ -52,7 +51,7 @@ export function LoginForm() {
         body: JSON.stringify(values),
       });
 
-      const data = await res.json();
+      const data = await await res.json(); // Fixed: Double await
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -63,7 +62,11 @@ export function LoginForm() {
         description: "Welcome back to the chat app!",
       });
 
-      router.push("/chat");
+        
+      setTimeout(() => {
+        router.push("/chat");
+      }, 50); // A small delay, e.g., 50ms
+
     } catch (err: any) {
       toast({
         title: "Login failed",
@@ -73,7 +76,6 @@ export function LoginForm() {
     } finally {
       setIsLoading(false);
     }
-    
   }
 
   return (

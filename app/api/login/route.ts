@@ -1,5 +1,7 @@
+// api/login/route.ts (or wherever your login POST handler is)
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
+
+import { SignJWT } from 'jose'; 
 import bcrypt from 'bcryptjs'
 import { connectDB } from '@/lib/mongodb'
 import User from '@/lib/models/User'
@@ -20,10 +22,15 @@ export async function POST(req: NextRequest) {
     if (!isMatch)
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
 
-    // Create token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, {
-      expiresIn: '30d',
-    })
+    // Create token using jose
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+
+    const token = await new SignJWT({ id: user._id })
+      .setProtectedHeader({ alg: 'HS256' }) 
+      .setIssuedAt()
+      .setExpirationTime('1d') 
+      .sign(secret);
+
     const response = NextResponse.json({
       message: 'Login successful',
       user: {
@@ -32,12 +39,12 @@ export async function POST(req: NextRequest) {
         name: user.name,
         avatar: user.avatar,
         contacts: user.contacts,
-        
+
       },
     })
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production', 
       sameSite: 'lax',
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
