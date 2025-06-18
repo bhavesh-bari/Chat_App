@@ -48,6 +48,7 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
   const [userAvatar, setUserAvatar] = useState("https://github.com/shadcn.png");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactAdded, setContactAdded] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0); // This state is currently unused for UI changes on user's own avatar
   const { toast } = useToast();
   const [satusChanged, setStatusChanged] = useState(false); // This state is currently unused for UI changes on user's own avatar
 
@@ -312,6 +313,7 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
                 onClick={() => onSelectContact(contact)}
+                
                 className={`
                   flex items-center gap-3 p-3 rounded-lg cursor-pointer
                   transition-all duration-200 transform hover:scale-[1.02]
@@ -337,11 +339,11 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
                 <div className="flex flex-col items-end gap-1">
                   {/* Display the formatted time */}
                   <div className="text-xs text-muted-foreground">{contact.time}</div>
-                  {contact.unread > 0 && (
-                    <Badge variant="default" className="px-1.5 py-0.5">
-                      {contact.unread}
-                    </Badge>
-                  )}
+                  {(contact.unread ?? 0) > 0 && (
+  <Badge variant="default" className="px-1.5 py-0.5">
+    {contact.unread}
+  </Badge>
+)}
                 </div>
               </motion.div>
             ))}
