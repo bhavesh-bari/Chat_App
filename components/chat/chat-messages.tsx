@@ -69,7 +69,7 @@ export default function ChatMessages({ messages, contactId, isTyping, messagesEn
               new Date(messages[index - 1].timestamp).getDate();
 
             return (
-              <div key={message.id || message._id} className="space-y-2"> {/* Use message.id or message._id */}
+              <div key={message.id } className="space-y-2"> 
                 {showTimestamp && (
                   <div className="flex justify-center my-4">
                     <div className="px-3 py-1 bg-muted text-muted-foreground text-xs rounded-full">
