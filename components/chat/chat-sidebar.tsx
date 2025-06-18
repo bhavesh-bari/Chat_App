@@ -1,4 +1,3 @@
-// frontend/components/chat/ChatSidebar.tsx
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
@@ -50,6 +49,7 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactAdded, setContactAdded] = useState(false);
   const { toast } = useToast();
+  const [satusChanged, setStatusChanged] = useState(false); // This state is currently unused for UI changes on user's own avatar
 
   useEffect(() => {
     if (!socket.connected) {
@@ -65,6 +65,30 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
       setProfile(data.user);
     });
 
+    socket.on("handleOnline_success", () => {
+      console.log("✅ User is online");
+      setStatusChanged(true);
+      setTimeout(() => {
+        setStatusChanged(false);
+      }, 1000);
+    });
+
+    socket.on("handleOffline_success", () => {
+      console.log("✅ User is offline");
+      setStatusChanged(true);
+      setTimeout(() => {
+        setStatusChanged(false);
+      }, 1000);
+    });
+
+
+    socket.on('contact_status_update', (data) => {
+      console.log('Received contact status update:', data);
+      setContacts(prevContacts => prevContacts.map(contact =>
+        contact.id === data.contactId ? { ...contact, status: data.status } : contact
+      ));
+    });
+
     socket.on('getProfile_error', (err) => {
       console.error("❌ Profile error:", err);
     });
@@ -77,7 +101,6 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
           ? new Date(contact.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           : "";
 
-
         return {
           id: contact.contactUser._id,
           name: contact.contactUser.name || contact.contactUser.email.split('@')[0],
@@ -86,7 +109,7 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
           lastMessage: contact.lastMessage || "",
           time: formattedTime,
           unread: contact.unread || 0,
-          status: contact.contactUser.status || 'offline',
+          status: contact.status || 'offline', // Initial status from DB
         };
       });
       setContacts(formattedContacts);
@@ -149,8 +172,12 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
       socket.off('get_contacts_error');
       socket.off('add_contact_success');
       socket.off('add_contact_error');
+
+      socket.off('contact_status_update');
+      socket.off('handleOffline_success');
+      socket.off('handleOnline_success');
     };
-  }, [toast, contactAdded, onSelectContact]);
+  }, [toast, contactAdded, onSelectContact, setStatusChanged]);
 
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -188,6 +215,7 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
           title: "Success",
           description: "Profile picture updated successfully",
         });
+        // In a real app, you'd send this to the server to save the new avatar URL
       };
       reader.readAsDataURL(file);
     }
@@ -297,12 +325,13 @@ export default function ChatSidebar({ onSelectContact, selectedContactId }: Chat
                     <AvatarImage src={contact.avatar} alt={contact.name} />
                     <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
                   </Avatar>
+                  {/* UserStatusDot reflects real-time status changes received via socket */}
                   <UserStatusDot status={contact.status} className="absolute bottom-0 right-0" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium">{contact.name}</div>
                   <div className="text-xs text-muted-foreground truncate">
-                    {contact.email || contact.lastMessage}
+                    {contact.lastMessage || contact.email}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">

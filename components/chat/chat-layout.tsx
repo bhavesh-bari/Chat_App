@@ -1,4 +1,3 @@
-// frontend/app/chat/layout.tsx (or wherever your ChatLayout component is located)
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,8 +5,8 @@ import ChatSidebar from '@/components/chat/chat-sidebar';
 import ChatWindow from '@/components/chat/chat-window';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
-import socket from '@/lib/socket'; 
-import { useToast } from "@/hooks/use-toast"; 
+import socket from '@/lib/socket';
+import { useToast } from "@/hooks/use-toast";
 
 interface Contact {
   id: string;
@@ -21,12 +20,26 @@ interface Contact {
 }
 
 export default function ChatLayout() {
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null); 
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { toast } = useToast(); 
+  const { toast } = useToast();
 
-  
+  useEffect(() => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+    socket.emit();
+    socket.emit('join_all_rooms');
+    socket.on('join_all_rooms_success',()=>{
+      console.log('Successfully joined all rooms');
+    }); 
+    socket.emit('go_online'); 
+    return () => {
+      socket.emit('go_offline'); 
+    }
+  }, []); 
+
   useEffect(() => {
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -43,19 +56,13 @@ export default function ChatLayout() {
     };
   }, []);
 
- 
   useEffect(() => {
-    
     if (!socket.connected) {
       socket.connect();
     }
 
     socket.on('join_room_success', (data) => {
       console.log('Successfully joined room:', data.room);
-      toast({
-        title: "Chat Room Joined",
-        description: data.message || "You've successfully entered the chat.",
-      });
     });
 
     socket.on('join_room_error', (data) => {
@@ -65,7 +72,6 @@ export default function ChatLayout() {
         description: data.error || "Failed to join chat room.",
         variant: "destructive",
       });
-  
       setSelectedContact(null);
     });
 
@@ -73,8 +79,7 @@ export default function ChatLayout() {
       socket.off('join_room_success');
       socket.off('join_room_error');
     };
-  }, [toast]); 
-
+  }, [toast]);
 
   useEffect(() => {
     if (selectedContact) {
@@ -89,7 +94,8 @@ export default function ChatLayout() {
         });
       }
     }
-  }, [selectedContact, toast]); 
+  }, [selectedContact, toast]);
+
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
       {/* Mobile menu button */}
