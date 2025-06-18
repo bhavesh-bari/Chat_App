@@ -29,7 +29,6 @@ export default function ChatLayout() {
     if (!socket.connected) {
       socket.connect();
     }
-    socket.emit();
     socket.emit('join_all_rooms');
     socket.on('join_all_rooms_success',()=>{
       console.log('Successfully joined all rooms');
