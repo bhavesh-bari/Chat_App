@@ -30,10 +30,9 @@ export async function POST(req: NextRequest) {
     const token = await new SignJWT({ id: userIdString })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('1d') // Token valid for 1 day
+      .setExpirationTime('1d') 
       .sign(secret);
 
-    // ✅ CHANGE: Return the token in the JSON response body
     return NextResponse.json({
       message: 'Login successful',
       user: {
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
         avatar: user.avatar,
         contacts: user.contacts,
       },
-      token: token, // <-- The JWT token is now sent in the response
+      token: token, 
     });
 
   } catch (error) {
