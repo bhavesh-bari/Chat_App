@@ -5,7 +5,7 @@ const socket: Socket = io(
   {
     transports: ['websocket'],
     autoConnect: false,
-    withCredentials: true,
+    withCredentials: true, // ✅ REQUIRED for cookie to be sent
   }
 );
 
