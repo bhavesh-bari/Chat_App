@@ -1,3 +1,4 @@
+// socket.ts
 import { io, Socket } from 'socket.io-client';
 
 const socket: Socket = io(
@@ -5,7 +6,7 @@ const socket: Socket = io(
   {
     transports: ['websocket'],
     autoConnect: false,
-    withCredentials: true, // ✅ REQUIRED for cookie to be sent
+    withCredentials: true, // ✅ REQUIRED for cookie to be sent - ALREADY CORRECT
   }
 );
 

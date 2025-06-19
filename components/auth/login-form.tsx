@@ -1,3 +1,4 @@
+// LoginForm.tsx
 "use client";
 
 import { useState } from "react";
@@ -52,7 +53,7 @@ export function LoginForm() {
         body: JSON.stringify(values),
       });
 
-      const data = await await res.json(); // Fixed: Double await
+      const data = await res.json(); // Fixed: Double await from previous version
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -63,7 +64,7 @@ export function LoginForm() {
         description: "Welcome back to the chat app!",
       });
 
-        
+      // ✅ Keep this small delay to allow browser to set cookie
       setTimeout(() => {
         router.push("/chat");
       }, 50); // A small delay, e.g., 50ms

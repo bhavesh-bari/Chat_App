@@ -1,3 +1,4 @@
+// api/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import bcrypt from 'bcryptjs';
@@ -22,7 +23,13 @@ export async function POST(req: NextRequest) {
 
     // Create JWT token
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-    const token = await new SignJWT({ id: user._id })
+
+    // ✅ FIX: Ensure user._id is converted to a string before signing
+    // Mongoose documents have a ._id property which is an ObjectId.
+    // Convert it to a string for consistency in JWT payload.
+    const userIdString = user._id.toString(); 
+
+    const token = await new SignJWT({ id: userIdString }) // Use the stringified ID
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('1d')
@@ -32,7 +39,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       message: 'Login successful',
       user: {
-        _id: user._id,
+        _id: user._id, // You can keep the original ObjectId here for the response body
         email: user.email,
         name: user.name,
         avatar: user.avatar,
@@ -40,13 +47,14 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ✅ Set secure cookie for cross-origin Socket.IO
+    const isProduction = process.env.NODE_ENV === 'production';
+
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: true,            // must be true in production
-      sameSite: 'none',        // required for cross-origin
-      maxAge: 60 * 60 * 24,    // 1 day
-      path: '/',               // available everywhere
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 60 * 60 * 24,
+      path: '/',
     });
 
     return response;
