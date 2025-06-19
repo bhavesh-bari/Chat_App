@@ -1,55 +1,33 @@
-// middleware.ts
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { jwtVerify } from 'jose';
+// middleware.ts (Revised)
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/login', '/register'] 
+const PUBLIC_PATHS = ['/', '/login', '/register'];
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-  const token = request.cookies.get('token')?.value
+  const { pathname } = request.nextUrl;
 
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-
-  if (token && PUBLIC_PATHS.includes(pathname)) {
-    try {
-      
-      jwtVerify(token, secret); 
-      console.log('Middleware: Token verified. Redirecting to /chat');
-      const url = request.nextUrl.clone();
-      url.pathname = '/chat';
-      return NextResponse.redirect(url);
-    } catch (e) {
-      console.error('Middleware: Token verification failed:', (e as Error).message);
-      return NextResponse.next();
-    }
-  }
-
+  // If accessing a public path, always allow.
   if (PUBLIC_PATHS.includes(pathname)) {
-    console.log('Middleware: Public path, no token. Allowing access.');
+    console.log('Middleware: Public path. Allowing access.');
     return NextResponse.next();
   }
 
-  if (!token) {
-    console.log('Middleware: Private path, no token. Redirecting to /login');
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  try {
- 
-    jwtVerify(token, secret); 
-    console.log('Middleware: Private path, token valid. Allowing access.');
-    return NextResponse.next();
-  } catch (e) {
-    console.error('Middleware: Private path, token invalid. Redirecting to /login:', (e as Error).message);
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
+  // If trying to access a private path (e.g., /chat, /profile)
+  // Since we are using localStorage, the server-side middleware cannot
+  // directly verify the token.
+  //
+  // Instead, we will allow the request to proceed to the client.
+  // The client-side (specifically, the useEffect in ClientProviders/RootLayout
+  // or in the protected page component itself) will then check localStorage
+  // and perform the redirect if no token is found or it's invalid.
+  //
+  // This means the middleware is no longer enforcing auth for client-side routing,
+  // but only for initial server-rendered requests.
+  console.log('Middleware: Private path. Allowing access for client-side auth check.');
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: ['/', '/login', '/register', '/chat/:path*', '/profile/:path*'],
-}
+};

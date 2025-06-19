@@ -14,50 +14,38 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const user = await User.findOne({ email });
-    if (!user)
+    if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
+    if (!isMatch) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
 
     // Create JWT token
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+    const userIdString = user._id.toString();
 
-    // ✅ FIX: Ensure user._id is converted to a string before signing
-    // Mongoose documents have a ._id property which is an ObjectId.
-    // Convert it to a string for consistency in JWT payload.
-    const userIdString = user._id.toString(); 
-
-    const token = await new SignJWT({ id: userIdString }) // Use the stringified ID
+    const token = await new SignJWT({ id: userIdString })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('1d')
+      .setExpirationTime('1d') // Token valid for 1 day
       .sign(secret);
 
-    // Prepare response
-    const response = NextResponse.json({
+    // ✅ CHANGE: Return the token in the JSON response body
+    return NextResponse.json({
       message: 'Login successful',
       user: {
-        _id: user._id, // You can keep the original ObjectId here for the response body
+        _id: user._id,
         email: user.email,
         name: user.name,
         avatar: user.avatar,
         contacts: user.contacts,
       },
+      token: token, // <-- The JWT token is now sent in the response
     });
 
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 60 * 60 * 24,
-      path: '/',
-    });
-
-    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

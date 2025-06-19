@@ -1,7 +1,7 @@
 // LoginForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { initializeSocket } from "@/lib/socket"; // ✅ IMPORT initializeSocket
 
 // Zod schema for form validation
 const formSchema = z.object({
@@ -40,6 +41,14 @@ export function LoginForm() {
     },
   });
 
+  // Optional: Check if already logged in (token in localStorage) and redirect
+useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('authToken')) {
+        router.push('/chat');
+    }
+}, [router]);
+
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
 
@@ -49,14 +58,21 @@ export function LoginForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include', // Ensure cookies are sent with the request
+        // ✅ CHANGE: Remove credentials: 'include' - not sending cookies with this fetch
         body: JSON.stringify(values),
       });
 
-      const data = await res.json(); // Fixed: Double await from previous version
+      const data = await res.json(); 
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
+      }
+
+      // ✅ CHANGE: Store the token in localStorage
+      if (typeof window !== 'undefined' && data.token) {
+        localStorage.setItem('authToken', data.token);
+        // Optionally store user details too, if you need them on client-side
+        localStorage.setItem('user', JSON.stringify(data.user)); 
       }
 
       toast({
@@ -64,10 +80,12 @@ export function LoginForm() {
         description: "Welcome back to the chat app!",
       });
 
-      // ✅ Keep this small delay to allow browser to set cookie
-      setTimeout(() => {
-        router.push("/chat");
-      }, 50); // A small delay, e.g., 50ms
+      // ✅ NEW: Re-initialize the socket connection after successful login
+      // This ensures the socket connects with the newly obtained token
+      initializeSocket();
+
+      // Redirect to chat page
+      router.push("/chat"); 
 
     } catch (err: any) {
       toast({
