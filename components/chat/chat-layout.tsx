@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ChatSidebar from '@/components/chat/chat-sidebar';
 import ChatWindow from '@/components/chat/chat-window';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import socket from '@/lib/socket';
 import { useToast } from "@/hooks/use-toast";
+
 
 interface Contact {
   id: string;
@@ -18,26 +19,47 @@ interface Contact {
   unread?: number;
   status: 'online' | 'offline' | 'away';
 }
-
+interface Group {
+  id: string;
+  name: string;
+  avatar: string;
+  lastMessage?: string;
+  time?: string;
+  unread?: number;
+  members: string[]; // Array of member names or IDs
+}
 export default function ChatLayout() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const prevContactIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
-    socket.emit('join_all_rooms');
-    socket.on('join_all_rooms_success',()=>{
-      console.log('Successfully joined all rooms');
-    }); 
-    socket.emit('go_online'); 
-    return () => {
-      socket.emit('go_offline'); 
-    }
-  }, []); 
+useEffect(() => {
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+
+  socket.emit('go_online');
+
+  socket.on('join_all_rooms_error', (data) => {
+    console.error('❌ Failed to join all rooms:', data.error);
+    toast({
+      title: 'Join Room Error',
+      description: data.error,
+      variant: 'destructive',
+    });
+  });
+
+  return () => {
+    socket.emit('go_offline');
+    socket.off('join_all_rooms_success');
+    socket.off('join_all_rooms_error');
+  };
+}, []);
+
 
   useEffect(() => {
     const checkIfMobile = () => {
@@ -121,11 +143,33 @@ export default function ChatLayout() {
       >
         <ChatSidebar
           onSelectContact={(contact) => {
+            const prevId = prevContactIdRef.current;
+
+            // Leave previous room if switching
+            if (prevId && prevId !== contact.id) {
+              socket.emit('leave_room', prevId);
+              console.log(`Left room: ${prevId}`);
+            }
+
             setSelectedContact(contact);
+
+            // Emit join room
+            if (socket.connected) {
+              socket.emit('join_room', { contactid: contact.id });
+              console.log(`Joined room: ${contact.id}`);
+            }
+
+            prevContactIdRef.current = contact.id;
             if (isMobile) setIsMobileMenuOpen(false);
           }}
           selectedContactId={selectedContact?.id}
+          onSelectGroup={(group) => {
+            setSelectedGroup(group);
+            setSelectedContact(null); // leave contact view
+          }}
+          selectedGroupId={selectedGroup?.id}
         />
+
       </div>
 
       {/* Chat window */}
@@ -140,11 +184,18 @@ export default function ChatLayout() {
           <ChatWindow
             contact={selectedContact}
             onBack={() => {
-              if (isMobile) {
-                setSelectedContact(null);
-                setIsMobileMenuOpen(true);
-              }
-            }}
+  const prevId = prevContactIdRef.current;
+  if (prevId) {
+    socket.emit('leave_room', prevId);
+    console.log(`Left room: ${prevId}`);
+  }
+
+  setSelectedContact(null);
+  if (isMobile) setIsMobileMenuOpen(true);
+
+  prevContactIdRef.current = null;
+}}
+
           />
         ) : (
           <div className="flex items-center justify-center h-full">

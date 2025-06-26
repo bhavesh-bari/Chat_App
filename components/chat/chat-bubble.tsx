@@ -24,10 +24,10 @@ export default function ChatBubble({ message, timestamp, isMe, status }: ChatBub
             {format(new Date(timestamp), 'h:mm a')}
             <span className="ml-1">
               {status === 'read' ? (
+                <CheckCheck className="h-3 w-3 text-blue-500" />
+              ) : (status === 'delivered') ? (
                 <CheckCheck className="h-3 w-3" />
-              ) : status === 'delivered' || status === 'sent' ? (
-                <Check className="h-3 w-3" />
-              ) : null}
+              ) : <Check className="h-3 w-3 " />}
             </span>
           </div>
         </div>
