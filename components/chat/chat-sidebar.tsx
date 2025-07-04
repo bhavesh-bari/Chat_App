@@ -1,3 +1,4 @@
+// components/chat/ChatSidebar.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -6,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MoreVertical } from 'lucide-react';
+import RecentGroupsList from "./group-chat/RecentGroupsList";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -19,6 +22,7 @@ import UserStatusDot from "@/components/chat/user-status-dot";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import socket from "@/lib/socket";
+import RecentContactsList from "@/components/chat/contact_chat/RecentContactsList";
 
 interface Contact {
   id: string;
@@ -31,22 +35,10 @@ interface Contact {
   status: "online" | "offline" | "away";
 }
 
-interface Group {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage?: string;
-  time?: string;
-  unread?: number;
-  members: string[];
-}
-
 interface ChatSidebarProps {
   onSelectContact: (contact: Contact) => void;
   selectedContactId?: string;
-  // IMPORTANT: Add these props for group handling if you implement it in ChatLayout
-  onSelectGroup: (group: Group) => void;
-  selectedGroupId?: string;
+  setTab: (tab: string) => void;
 }
 
 const MAX_FILE_SIZE = 5000000; // 5MB
@@ -60,83 +52,72 @@ const ACCEPTED_IMAGE_TYPES = [
 export default function ChatSidebar({
   onSelectContact,
   selectedContactId,
-  onSelectGroup, // Destructure the new prop
-  selectedGroupId, // Destructure the new prop
+  setTab,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
   const [newContactEmail, setNewContactEmail] = useState("");
   const [isAddingContact, setIsAddingContact] = useState(false);
+  const [menuOpen, setMenuOpen] = useState<boolean>(false);
+  const menuRef = useRef<HTMLDivElement>(null); // Ref for the menu div
+  const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the button
   const [profile, setProfile] = useState<{
     name?: string;
     email?: string;
-    avatar?: string; // Changed from avatarUrl to avatar to match your Contact interface and user object
+    avatar?: string;
   }>({});
-  
-  const [userAvatar, setUserAvatar] = useState("https://github.com/shadcn.png"); // For immediate preview
+
+  const [userAvatar, setUserAvatar] = useState("https://github.com/shadcn.png");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactAdded, setContactAdded] = useState(false);
   const { toast } = useToast();
   const [statusChanged, setStatusChanged] = useState(false);
-  const [isContacts, setIsContacts] = useState(true); // Default to contacts view
+  const [isContacts, setIsContacts] = useState(true);
 
-  // Mock group data (replace with actual fetch from backend)
-  const mockGroups: Group[] = [
-    {
-      id: "group1",
-      name: "Work Team",
-      avatar: "https://api.dicebear.com/7.x/initials/svg?seed=WorkTeam",
-      lastMessage: "Project deadline is next week!",
-      time: "10:30 AM",
-      unread: 3,
-      members: ["Alice", "Bob", "Charlie"],
-    },
-    {
-      id: "group2",
-      name: "Family Chat",
-      avatar: "https://api.dicebear.com/7.x/initials/svg?seed=FamilyChat",
-      lastMessage: "Don't forget dinner tonight.",
-      time: "Yesterday",
-      unread: 0,
-      members: ["Mom", "Dad", "Sister"],
-    },
-    {
-      id: "group3",
-      name: "Gaming Squad",
-      avatar: "https://api.dicebear.com/7.x/initials/svg?seed=GamingSquad",
-      lastMessage: "New game out!",
-      time: "1 week ago",
-      unread: 1,
-      members: ["Player1", "Player2"],
-    },
-  ];
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
+
 
   useEffect(() => {
-    setGroups(mockGroups);
-
     if (!socket.connected) {
       socket.connect();
     }
 
     socket.emit("get_profile");
     socket.emit("get_contacts");
-      socket.emit('join_all_rooms');
-const handleContactsChange = (data: {
-    receiverId: string;
-    senderId: string;
-    unread: number;
-    lastMessage: string;
-    time: string;
-  }) => {
-   
-    const me = JSON.parse(localStorage.getItem('user') || '{}');
-    if (data.receiverId !== me._id) return;
+    socket.emit('join_all_rooms');
 
-    setContacts(prev =>
-      prev.map(c =>
-        c.id === data.senderId
-          ? {
+    const handleContactsChange = (data: {
+      receiverId: string;
+      senderId: string;
+      unread: number;
+      lastMessage: string;
+      time: string;
+    }) => {
+      const me = JSON.parse(localStorage.getItem('user') || '{}');
+      if (data.receiverId !== me._id) return;
+
+      setContacts(prev =>
+        prev.map(c =>
+          c.id === data.senderId
+            ? {
               ...c,
               unread: data.unread,
               lastMessage: data.lastMessage,
@@ -145,37 +126,39 @@ const handleContactsChange = (data: {
                 minute: '2-digit'
               })
             }
-          : c
-      )
-    );
-  };
+            : c
+        )
+      );
+    };
 
-  socket.on('contacts_changes', handleContactsChange);
+    socket.on('contacts_changes', handleContactsChange);
+
     socket.on("getProfile_success", (data) => {
       console.log("✅ Got profile:", data.user);
       setProfile(data.user);
-      setUserAvatar(data.user.avatarUrl || "https://github.com/shadcn.png"); 
+      setUserAvatar(data.user.avatarUrl || "https://github.com/shadcn.png");
     });
-      socket.on('join_all_rooms_success', (data) => {
-    console.log(data.message);
-  });
-    socket.on("updateProfile_success", (data) => { 
+
+    socket.on('join_all_rooms_success', (data) => {
+      console.log(data.message);
+    });
+
+    socket.on("updateProfile_success", (data) => {
       toast({
         title: "Success",
         description: data.message,
       });
-      
-      setProfile(data.user); 
-      setUserAvatar(data.user.avatar); // Ensure avatar is updated with the new URL
+
+      setProfile(data.user);
+      setUserAvatar(data.user.avatar);
     });
 
-    socket.on("updateProfile_error", (data) => { // LISTEN FOR UPDATE ERROR
+    socket.on("updateProfile_error", (data) => {
       toast({
         title: "Error",
         description: data.error,
         variant: "destructive",
       });
-      // Optionally revert avatar if upload failed and you want to be precise
       setUserAvatar(profile?.avatar || "https://github.com/shadcn.png");
     });
 
@@ -205,17 +188,17 @@ const handleContactsChange = (data: {
         )
       );
     });
-    socket.on("contact_profile_updated", (data) => { // LISTEN FOR OTHER CONTACTS' PROFILE UPDATES
-        console.log("Received contact profile update:", data);
-        setContacts((prevContacts) =>
-            prevContacts.map((contact) =>
-                contact.id === data.contactId
-                    ? { ...contact, ...data.updatedData } // Merge updated data
-                    : contact
-            )
-        );
-    });
 
+    socket.on("contact_profile_updated", (data) => {
+      console.log("Received contact profile update:", data);
+      setContacts((prevContacts) =>
+        prevContacts.map((contact) =>
+          contact.id === data.contactId
+            ? { ...contact, ...data.updatedData }
+            : contact
+        )
+      );
+    });
 
     socket.on("getProfile_error", (err) => {
       console.error("❌ Profile error:", err);
@@ -226,9 +209,9 @@ const handleContactsChange = (data: {
       const formattedContacts: Contact[] = data.contacts.map((contact: any) => {
         const formattedTime = contact.time
           ? new Date(contact.time).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
+            hour: "2-digit",
+            minute: "2-digit",
+          })
           : "";
 
         return {
@@ -237,12 +220,12 @@ const handleContactsChange = (data: {
             contact.contactUser.name || contact.contactUser.email.split("@")[0],
           email: contact.contactUser.email,
           avatar:
-            contact.contactUser.avatarUrl || // Use 'avatar' field from backend
+            contact.contactUser.avatarUrl ||
             `https://api.dicebear.com/7.x/avataaars/svg?seed=${contact.contactUser.email}`,
           lastMessage: contact.lastMessage || "",
           time: formattedTime,
           unread: contact.unread || 0,
-          status: contact.status || "offline", // Initial status from DB
+          status: contact.status || "offline",
         };
       });
       setContacts(formattedContacts);
@@ -265,14 +248,14 @@ const handleContactsChange = (data: {
 
       const formattedTime = data.contact.time
         ? new Date(data.contact.time).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
+          hour: "2-digit",
+          minute: "2-digit",
+        })
         : "";
 
       const contactUserName = data.contact.contactUser?.name;
       const contactUserEmail = data.contact.contactUser?.email;
-      const contactUserAvatar = data.contact.contactUser?.avatar; // Use 'avatar'
+      const contactUserAvatar = data.contact.contactUser?.avatar;
       const contactUserStatus = data.contact.contactUser?.status;
 
       const newContact: Contact = {
@@ -282,7 +265,7 @@ const handleContactsChange = (data: {
           (contactUserEmail ? contactUserEmail.split("@")[0] : "Unknown"),
         email: contactUserEmail,
         avatar:
-          contactUserAvatar || // Use 'avatar'
+          contactUserAvatar ||
           (contactUserEmail
             ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${contactUserEmail}`
             : "https://github.com/shadcn.png"),
@@ -296,7 +279,7 @@ const handleContactsChange = (data: {
       setNewContactEmail("");
       setIsAddingContact(false);
       setContactAdded(true);
-      setTimeout(() => setContactAdded(false), 1000); // Reset after 3 seconds
+      setTimeout(() => setContactAdded(false), 1000);
     });
 
     socket.on("add_contact_error", (data) => {
@@ -310,39 +293,31 @@ const handleContactsChange = (data: {
     return () => {
       socket.off("getProfile_success");
       socket.off("getProfile_error");
-      socket.off("updateProfile_success"); // Clean up
-      socket.off("updateProfile_error");   // Clean up
+      socket.off("updateProfile_success");
+      socket.off("updateProfile_error");
       socket.off("get_contacts_success");
       socket.off("get_contacts_error");
       socket.off("add_contact_success");
       socket.off("add_contact_error");
       socket.off("contact_status_update");
-      socket.off("contact_profile_updated"); // Clean up
+      socket.off("contact_profile_updated");
       socket.off("handleOffline_success");
       socket.off("handleOnline_success");
+      socket.off("contacts_changes");
     };
-  }, [toast, contactAdded, onSelectContact, setStatusChanged]); // Removed setStatusChanged from deps as it's not used here
+  }, [toast, contactAdded, onSelectContact]);
 
   const filteredContacts = contacts.filter(
     (contact) =>
       contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const filteredGroups = groups.filter(
-    (group) =>
-      group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      group.members.some((member) =>
-        member.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-  );
-
   const handleAddContact = () => {
     if (!newContactEmail.trim() || !newContactEmail.includes("@")) return;
     socket.emit("add_contact", { email: newContactEmail });
   };
 
-  const handleProfilePictureChange = async ( // Made async
+  const handleProfilePictureChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -364,7 +339,6 @@ const handleContactsChange = (data: {
         return;
       }
 
-      // 1. Immediate Client-Side Preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setUserAvatar(reader.result as string);
@@ -372,7 +346,6 @@ const handleContactsChange = (data: {
       reader.readAsDataURL(file);
 
       try {
-        // 2. Upload to Cloudinary via Next.js API route
         const formData = new FormData();
         formData.append('file', file);
 
@@ -389,13 +362,7 @@ const handleContactsChange = (data: {
         const { url: uploadedAvatarUrl } = await uploadResponse.json();
         console.log("Uploaded to Cloudinary:", uploadedAvatarUrl);
 
-        // 3. Emit update to Socket.IO backend
-        console.log("Emitting updateProfile event with:", uploadedAvatarUrl);
         socket.emit('updateProfile', { avatarUrl: uploadedAvatarUrl });
-
-        // Success and error toasts for this operation are handled by the
-        // socket.on('updateProfile_success') and socket.on('updateProfile_error')
-        // listeners in the useEffect hook.
 
       } catch (error: any) {
         console.error("Profile picture upload failed:", error);
@@ -404,14 +371,9 @@ const handleContactsChange = (data: {
           description: error.message || "Could not upload profile picture.",
           variant: "destructive",
         });
-        // Revert the preview if the upload completely failed
         setUserAvatar(profile?.avatar || "https://github.com/shadcn.png");
       }
     }
-  };
-
-  const handleSelectGroup = (group: Group) => {
-    onSelectGroup(group); // Use the prop passed from ChatLayout
   };
 
   return (
@@ -424,7 +386,7 @@ const handleContactsChange = (data: {
             onClick={() => fileInputRef.current?.click()}
           >
             <Avatar className="h-10 w-10">
-              <AvatarImage src={userAvatar} alt="User" /> {/* Uses userAvatar for preview */}
+              <AvatarImage src={userAvatar} alt="User" />
               <AvatarFallback>{profile?.name?.charAt(0) || "U"}</AvatarFallback>
             </Avatar>
             <div className="absolute inset-0 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -444,44 +406,62 @@ const handleContactsChange = (data: {
               {profile?.email || "your.email@example.com"}
             </div>
           </div>
-          <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Contact</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="friend@example.com"
-                    value={newContactEmail}
-                    onChange={(e) => setNewContactEmail(e.target.value)}
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={handleAddContact}
-                  disabled={!newContactEmail.includes("@")}
-                >
-                  Add Contact
-                </Button>
+
+          {/* New structure for responsive menu */}
+          <div className="relative"> {/* This is the new parent for relative positioning */}
+            <Button
+              ref={buttonRef} // Assign ref to the button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+            {/* The menu dropdown */}
+            <div
+              ref={menuRef} // Assign ref to the menu div
+              className={`absolute right-0 mt-2 w-44 bg-blue-100 dark:bg-gray-800 rounded-md shadow-lg p-2 flex flex-col gap-2 z-10 ${menuOpen ? 'block' : 'hidden'}`}
+            >
+              {/* Dialog for Add New Contact, now properly nested for the Trigger */}
+              <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
+                <DialogTrigger asChild>
+                  <div
+                    className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded-md"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Add contact
+                  </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Contact</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="friend@example.com"
+                        value={newContactEmail}
+                        onChange={(e) => setNewContactEmail(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={handleAddContact}
+                      disabled={!newContactEmail.includes("@")}
+                    >
+                      Add Contact
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <div className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded-md">
+                Create group
               </div>
-            </DialogContent>
-          </Dialog>
-          <Button variant="ghost" size="icon">
-            <Sliders className="h-5 w-5" />
-          </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -491,6 +471,7 @@ const handleContactsChange = (data: {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
+            // Placeholder reflects the active tab for display
             placeholder={isContacts ? "Search contacts..." : "Search groups..."}
             className="pl-8"
             value={searchQuery}
@@ -499,144 +480,46 @@ const handleContactsChange = (data: {
         </div>
       </div>
 
-      {/* Contact/Group list toggle */}
+      {/* Contact/Group list toggle (as per your image) */}
       <div className="p-2">
         <div className="flex flex-row font-semibold gap-2 p-2 text-sm text-muted-foreground border-b border-gray-200 dark:border-gray-800">
           <span
-            className={`cursor-pointer px-3 py-1 rounded-md ${
-              isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-            }`}
-            onClick={() => setIsContacts(true)}
+            className={`cursor-pointer px-3 py-1 rounded-md ${isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
+              }`}
+            onClick={() => {
+              setIsContacts(true);
+              setTab("contact");
+              setSearchQuery(""); // Clear search when switching tabs
+            }}
           >
             Contacts
           </span>
           <span
-            className={`cursor-pointer px-3 py-1 rounded-md ${
-              !isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-            }`}
-            onClick={() => setIsContacts(false)}
+            className={`cursor-pointer px-3 py-1 rounded-md ${!isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
+              }`}
+            onClick={() => {
+              setIsContacts(false);
+              setTab("group");
+              setSearchQuery(""); // Clear search when switching tabs
+            }}
           >
             Groups
           </span>
         </div>
       </div>
 
-      {/* Contact or Group list */}
+      {/* Content area: Contacts list or "No groups found" message */}
       <ScrollArea className="flex-1">
         <div className="p-2">
           <AnimatePresence mode="wait">
             {isContacts ? (
-              <motion.div
-                key="contacts-list"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-              >
-                {filteredContacts.length > 0 ? (
-                  filteredContacts.map((contact) => (
-                    <motion.div
-                      key={contact.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.2 }}
-                      onClick={() => onSelectContact(contact)}
-                      className={`
-                        flex items-center gap-3 p-3 rounded-lg cursor-pointer
-                        transition-all duration-200 transform hover:scale-[1.02]
-                        ${
-                          selectedContactId === contact.id
-                            ? "bg-gray-200 dark:bg-gray-800"
-                            : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-                        }
-                      `}
-                    >
-                      <div className="relative">
-                        <Avatar>
-                          <AvatarImage src={contact.avatar} alt={contact.name} />
-                          <AvatarFallback>{contact.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <UserStatusDot
-                          status={contact.status}
-                          className="absolute bottom-0 right-0"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{contact.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {contact.lastMessage || contact.email}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="text-xs text-muted-foreground">
-                          {contact.time}
-                        </div>
-                        {(contact.unread ?? 0) > 0 && (
-                          <Badge variant="default" className="px-1.5 py-0.5">
-                            {contact.unread}
-                          </Badge>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">No contacts found.</p>
-                )}
-              </motion.div>
+              <RecentContactsList
+                contacts={filteredContacts}
+                onSelectContact={onSelectContact}
+                selectedContactId={selectedContactId}
+              />
             ) : (
-              <motion.div
-                key="groups-list"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                {filteredGroups.length > 0 ? (
-                  filteredGroups.map((group) => (
-                    <motion.div
-                      key={group.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.2 }}
-                      onClick={() => handleSelectGroup(group)}
-                      className={`
-                        flex items-center gap-3 p-3 rounded-lg cursor-pointer
-                        transition-all duration-200 transform hover:scale-[1.02]
-                        ${
-                          selectedGroupId === group.id // Use selectedGroupId here
-                            ? "bg-gray-200 dark:bg-gray-800"
-                            : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-                        }
-                      `}
-                    >
-                      <Avatar>
-                        <AvatarImage src={group.avatar} alt={group.name} />
-                        <AvatarFallback>{group.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{group.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {group.lastMessage || ``}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="text-xs text-muted-foreground">
-                          {group.time}
-                        </div>
-                        {(group.unread ?? 0) > 0 && (
-                          <Badge variant="default" className="px-1.5 py-0.5">
-                            {group.unread}
-                          </Badge>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">No groups found.</p>
-                )}
-              </motion.div>
+              <RecentGroupsList />
             )}
           </AnimatePresence>
         </div>

@@ -19,46 +19,47 @@ interface Contact {
   unread?: number;
   status: 'online' | 'offline' | 'away';
 }
-interface Group {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage?: string;
-  time?: string;
-  unread?: number;
-  members: string[]; // Array of member names or IDs
-}
+// Group interface removed as group functionality is no longer present
+// interface Group {
+//   id: string;
+//   name: string;
+//   avatar: string;
+//   lastMessage?: string;
+//   time?: string;
+//   unread?: number;
+//   members: string[]; // Array of member names or IDs
+// }
+
 export default function ChatLayout() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
-  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const prevContactIdRef = useRef<string | null>(null);
+  const [tab, setTab] = useState<string>("contact");
 
-useEffect(() => {
-  if (!socket.connected) {
-    socket.connect();
-  }
+  useEffect(() => {
+    if (!socket.connected) {
+      socket.connect();
+    }
 
+    socket.emit('go_online');
 
-  socket.emit('go_online');
-
-  socket.on('join_all_rooms_error', (data) => {
-    console.error('❌ Failed to join all rooms:', data.error);
-    toast({
-      title: 'Join Room Error',
-      description: data.error,
-      variant: 'destructive',
+    socket.on('join_all_rooms_error', (data) => {
+      console.error('❌ Failed to join all rooms:', data.error);
+      toast({
+        title: 'Join Room Error',
+        description: data.error,
+        variant: 'destructive',
+      });
     });
-  });
 
-  return () => {
-    socket.emit('go_offline');
-    socket.off('join_all_rooms_success');
-    socket.off('join_all_rooms_error');
-  };
-}, []);
+    return () => {
+      socket.emit('go_offline');
+      socket.off('join_all_rooms_success');
+      socket.off('join_all_rooms_error');
+    };
+  }, []);
 
 
   useEffect(() => {
@@ -152,7 +153,6 @@ useEffect(() => {
             }
 
             setSelectedContact(contact);
-
             // Emit join room
             if (socket.connected) {
               socket.emit('join_room', { contactid: contact.id });
@@ -162,12 +162,8 @@ useEffect(() => {
             prevContactIdRef.current = contact.id;
             if (isMobile) setIsMobileMenuOpen(false);
           }}
+          setTab={setTab}
           selectedContactId={selectedContact?.id}
-          onSelectGroup={(group) => {
-            setSelectedGroup(group);
-            setSelectedContact(null); // leave contact view
-          }}
-          selectedGroupId={selectedGroup?.id}
         />
 
       </div>
@@ -183,18 +179,19 @@ useEffect(() => {
         {selectedContact ? (
           <ChatWindow
             contact={selectedContact}
+            Tab={tab}
             onBack={() => {
-  const prevId = prevContactIdRef.current;
-  if (prevId) {
-    socket.emit('leave_room', prevId);
-    console.log(`Left room: ${prevId}`);
-  }
+              const prevId = prevContactIdRef.current;
+              if (prevId) {
+                socket.emit('leave_room', prevId);
+                console.log(`Left room: ${prevId}`);
+              }
 
-  setSelectedContact(null);
-  if (isMobile) setIsMobileMenuOpen(true);
+              setSelectedContact(null);
+              if (isMobile) setIsMobileMenuOpen(true);
 
-  prevContactIdRef.current = null;
-}}
+              prevContactIdRef.current = null;
+            }}
 
           />
         ) : (

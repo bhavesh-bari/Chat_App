@@ -8,7 +8,7 @@ import ChatInput from '@/components/chat/chat-input';
 import socket from '@/lib/socket';
 import { useToast } from "@/hooks/use-toast";
 import { set } from 'mongoose';
-
+import GroupChatWindow from './group-chat/GroupChatWindow';
 interface Message {
   id: string;
   senderId: string;
@@ -26,10 +26,11 @@ interface ChatWindowProps {
     avatar: string;
     status: 'online' | 'offline' | 'away';
   };
+  Tab: string;
   onBack: () => void;
 }
 
-export default function ChatWindow({ contact, onBack }: ChatWindowProps) {
+export default function ChatWindow({ contact, onBack, Tab }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -145,11 +146,11 @@ export default function ChatWindow({ contact, onBack }: ChatWindowProps) {
       setMessages([]);
       setIsTyping(false);
     };
-  }, [contact.id, toast, currentUser?._id, isOnline,deliver]);
+  }, [contact.id, toast, currentUser?._id, isOnline, deliver]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [ isTyping]);
+  }, [isTyping]);
 
 
   const scrollToBottom = () => {
@@ -173,19 +174,25 @@ export default function ChatWindow({ contact, onBack }: ChatWindowProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <ChatHeader contact={contact} onBack={onBack} />
-      <ChatMessages
-        messages={messages}
-        contactId={contact.id}
-        isTyping={isTyping}
-        messagesEndRef={messagesEndRef}
-      />
-      <ChatInput
-        onSendMessage={handleSendMessage}
-        receiverId={contact.id}
-        senderId={currentUser?._id || ''}
-      />
-    </div>
+    <>
+      {Tab === 'contact' ?
+        <div className="flex flex-col h-full">
+          <ChatHeader contact={contact} onBack={onBack} />
+          <ChatMessages
+            messages={messages}
+            contactId={contact.id}
+            isTyping={isTyping}
+            messagesEndRef={messagesEndRef}
+
+          />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            receiverId={contact.id}
+            senderId={currentUser?._id || ''}
+
+          />
+        </div> : <GroupChatWindow />
+      }
+    </>
   );
 }
