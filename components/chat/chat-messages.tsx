@@ -1,3 +1,4 @@
+// frontend/components/chat/ChatMessages.tsx
 "use client";
 
 import { useRef, useEffect, RefObject, useState } from "react";
@@ -5,11 +6,16 @@ import { formatRelative } from "date-fns";
 import ChatBubble from "@/components/chat/chat-bubble";
 import socket from "@/lib/socket";
 
+// --- UPDATED Message INTERFACE ---
 interface Message {
   id: string;
   senderId: string;
   receiverId: string;
-  text: string;
+  type: 'text' | 'image' | 'video' | 'file'; // Add message type
+  text?: string; // Make text optional
+  fileUrl?: string; // Add file URL
+  fileName?: string; // Add file name
+  fileSize?: number; // Add file size
   timestamp: string;
   status: "sent" | "delivered" | "read";
 }
@@ -19,6 +25,7 @@ interface ChatMessagesProps {
   contactId: string;
   isTyping: boolean;
   messagesEndRef: RefObject<HTMLDivElement>;
+  currentUserId: string | null; // Pass current user ID from ChatWindow
 }
 
 export default function ChatMessages({
@@ -26,26 +33,15 @@ export default function ChatMessages({
   contactId,
   isTyping,
   messagesEndRef,
+  currentUserId, // Receive current user ID
 }: ChatMessagesProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!socket.connected) socket.connect();
-    socket.emit("get_profile");
-    socket.on("getProfile_success", (data: any) =>
-      setCurrentUserId(data.user._id)
-    );
-    return () => {
-      socket.off("getProfile_success");
-    };
-  }, []);
 
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
-  }, [messages]);
+  }, [messages, messagesEndRef]); // Add messagesEndRef to dependencies
 
   return (
     <div
@@ -66,7 +62,7 @@ export default function ChatMessages({
             const showTimestamp =
               index === 0 ||
               new Date(message.timestamp).getDate() !==
-                new Date(messages[index - 1].timestamp).getDate();
+              new Date(messages[index - 1].timestamp).getDate();
 
             return (
               <div key={message.id} className="space-y-2">
@@ -75,11 +71,10 @@ export default function ChatMessages({
                     {formatRelative(new Date(message.timestamp), new Date())}
                   </div>
                 )}
+                {/* --- Pass the whole message object to ChatBubble --- */}
                 <ChatBubble
-                  message={message.text}
-                  timestamp={message.timestamp}
+                  message={message} // Pass the entire message object
                   isMe={isMe}
-                  status={message.status}
                 />
               </div>
             );

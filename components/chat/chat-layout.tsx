@@ -19,16 +19,7 @@ interface Contact {
   unread?: number;
   status: 'online' | 'offline' | 'away';
 }
-// Group interface removed as group functionality is no longer present
-// interface Group {
-//   id: string;
-//   name: string;
-//   avatar: string;
-//   lastMessage?: string;
-//   time?: string;
-//   unread?: number;
-//   members: string[]; // Array of member names or IDs
-// }
+
 
 export default function ChatLayout() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -120,7 +111,7 @@ export default function ChatLayout() {
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
-      {/* Mobile menu button */}
+      {/* Mobile menu button
       {isMobile && !isMobileMenuOpen && !selectedContact && (
         <div className="fixed top-4 left-4 z-20">
           <Button
@@ -132,7 +123,7 @@ export default function ChatLayout() {
             <Menu className="h-5 w-5" />
           </Button>
         </div>
-      )}
+      )} */}
 
       {/* Sidebar */}
       <div
@@ -162,7 +153,7 @@ export default function ChatLayout() {
             prevContactIdRef.current = contact.id;
             if (isMobile) setIsMobileMenuOpen(false);
           }}
-          setTab={setTab}
+
           selectedContactId={selectedContact?.id}
         />
 

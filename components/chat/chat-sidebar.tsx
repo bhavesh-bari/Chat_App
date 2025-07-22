@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MoreVertical } from 'lucide-react';
-import RecentGroupsList from "./group-chat/RecentGroupsList";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -22,7 +21,7 @@ import UserStatusDot from "@/components/chat/user-status-dot";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import socket from "@/lib/socket";
-import RecentContactsList from "@/components/chat/contact_chat/RecentContactsList";
+import RecentContactsList from "@/components/chat/RecentContactsList";
 
 interface Contact {
   id: string;
@@ -38,7 +37,6 @@ interface Contact {
 interface ChatSidebarProps {
   onSelectContact: (contact: Contact) => void;
   selectedContactId?: string;
-  setTab: (tab: string) => void;
 }
 
 const MAX_FILE_SIZE = 5000000; // 5MB
@@ -52,7 +50,6 @@ const ACCEPTED_IMAGE_TYPES = [
 export default function ChatSidebar({
   onSelectContact,
   selectedContactId,
-  setTab,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -72,7 +69,6 @@ export default function ChatSidebar({
   const [contactAdded, setContactAdded] = useState(false);
   const { toast } = useToast();
   const [statusChanged, setStatusChanged] = useState(false);
-  const [isContacts, setIsContacts] = useState(true);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -312,6 +308,7 @@ export default function ChatSidebar({
       contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
   const handleAddContact = () => {
     if (!newContactEmail.trim() || !newContactEmail.includes("@")) return;
     socket.emit("add_contact", { email: newContactEmail });
@@ -408,9 +405,9 @@ export default function ChatSidebar({
           </div>
 
           {/* New structure for responsive menu */}
-          <div className="relative"> {/* This is the new parent for relative positioning */}
+          <div className="relative">
             <Button
-              ref={buttonRef} // Assign ref to the button
+              ref={buttonRef}
               variant="ghost"
               size="icon"
               onClick={() => setMenuOpen(!menuOpen)}
@@ -419,10 +416,9 @@ export default function ChatSidebar({
             </Button>
             {/* The menu dropdown */}
             <div
-              ref={menuRef} // Assign ref to the menu div
+              ref={menuRef}
               className={`absolute right-0 mt-2 w-44 bg-blue-100 dark:bg-gray-800 rounded-md shadow-lg p-2 flex flex-col gap-2 z-10 ${menuOpen ? 'block' : 'hidden'}`}
             >
-              {/* Dialog for Add New Contact, now properly nested for the Trigger */}
               <Dialog open={isAddingContact} onOpenChange={setIsAddingContact}>
                 <DialogTrigger asChild>
                   <div
@@ -457,9 +453,6 @@ export default function ChatSidebar({
                   </div>
                 </DialogContent>
               </Dialog>
-              <div className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded-md">
-                Create group
-              </div>
             </div>
           </div>
         </div>
@@ -471,8 +464,7 @@ export default function ChatSidebar({
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
-            // Placeholder reflects the active tab for display
-            placeholder={isContacts ? "Search contacts..." : "Search groups..."}
+            placeholder="Search contacts..."
             className="pl-8"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -480,47 +472,15 @@ export default function ChatSidebar({
         </div>
       </div>
 
-      {/* Contact/Group list toggle (as per your image) */}
-      <div className="p-2">
-        <div className="flex flex-row font-semibold gap-2 p-2 text-sm text-muted-foreground border-b border-gray-200 dark:border-gray-800">
-          <span
-            className={`cursor-pointer px-3 py-1 rounded-md ${isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-              }`}
-            onClick={() => {
-              setIsContacts(true);
-              setTab("contact");
-              setSearchQuery(""); // Clear search when switching tabs
-            }}
-          >
-            Contacts
-          </span>
-          <span
-            className={`cursor-pointer px-3 py-1 rounded-md ${!isContacts ? " text-gray-900 dark:text-gray-50" : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-              }`}
-            onClick={() => {
-              setIsContacts(false);
-              setTab("group");
-              setSearchQuery(""); // Clear search when switching tabs
-            }}
-          >
-            Groups
-          </span>
-        </div>
-      </div>
-
-      {/* Content area: Contacts list or "No groups found" message */}
+      {/* Contacts list */}
       <ScrollArea className="flex-1">
         <div className="p-2">
           <AnimatePresence mode="wait">
-            {isContacts ? (
-              <RecentContactsList
-                contacts={filteredContacts}
-                onSelectContact={onSelectContact}
-                selectedContactId={selectedContactId}
-              />
-            ) : (
-              <RecentGroupsList />
-            )}
+            <RecentContactsList
+              contacts={filteredContacts}
+              onSelectContact={onSelectContact}
+              selectedContactId={selectedContactId}
+            />
           </AnimatePresence>
         </div>
       </ScrollArea>

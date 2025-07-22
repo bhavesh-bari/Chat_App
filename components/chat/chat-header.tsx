@@ -11,15 +11,102 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import UserStatusDot from '@/components/chat/user-status-dot';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import socket from '@/lib/socket'; // Direct import of the socket instance
+import { useToast } from "@/hooks/use-toast";// Assuming you have Shadcn UI Toast
 
 interface ChatHeaderProps {
-  contact: any;
+  contact: {
+    id: string; // Ensure contact has an 'id' for deletion
+    name: string;
+    avatar: string;
+    status: 'online' | 'offline' | 'away';
+    phone?: string;
+    email?: string;
+    about?: string;
+  };
   onBack: () => void;
+  // Optional: A callback to notify the parent component that a contact was deleted
+  onContactDeleted?: (deletedContactId: string) => void;
 }
 
-export default function ChatHeader({ contact, onBack }: ChatHeaderProps) {
+export default function ChatHeader({ contact, onBack, onContactDeleted }: ChatHeaderProps) {
   const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const { toast } = useToast(); // Get the toast function
+
+  // --- Socket.IO Event Handlers ---
+  useEffect(() => {
+    // No need to check for `socket` being null, as it's directly imported and always exists
+    // (though its connection status might vary).
+
+    const handleDeleteSuccess = (data: { message: string, deletedContactId: string }) => {
+      toast({
+        title: "Contact Deleted",
+        description: data.message,
+        // Assuming you have a 'success' variant for toast, or use 'default'
+        // For Shadcn UI, 'variant' can be 'default', 'destructive', 'success', etc.
+        // If you don't have a 'success' variant, use 'default'.
+        // variant: "success",
+      });
+      console.log('Delete contact success:', data.message);
+
+      // Notify parent component to update contact list
+      if (onContactDeleted) {
+        onContactDeleted(data.deletedContactId);
+      }
+      onBack(); // Go back to the contact list after deletion
+    };
+
+    const handleDeleteError = (data: { error: string }) => {
+      toast({
+        title: "Error Deleting Contact",
+        description: data.error,
+        variant: "destructive",
+      });
+      console.error('Delete contact error:', data.error);
+    };
+
+    // Listen for the event that the other user was removed from someone's contacts
+    const handleContactRemovedFromOtherSide = (data: { removerId: string, removedContactId: string, message: string }) => {
+      // Check if *our* current user's ID matches the `removedContactId`
+      // This implies the other person (removerId) removed *us*
+      // The `contact.id` here is the ID of the person we are chatting with.
+      // If the `removerId` (the person who removed) is the current `contact.id`,
+      // it means the person we are chatting with just removed us from their contacts.
+      if (data.removerId === contact.id) {
+        toast({
+          title: "Contact Removed You",
+          description: data.message || `${contact.name} has removed you from their contacts.`,
+          // variant: "warning", // Or 'info'
+        });
+        console.log(data.message);
+        // You might want to automatically navigate back or update UI here
+        if (onContactDeleted) {
+          onContactDeleted(data.removerId); // Pass the ID of the user who removed you
+        }
+        onBack();
+      }
+    };
+
+
+    socket.on('delete_contact_success', handleDeleteSuccess);
+    socket.on('delete_contact_error', handleDeleteError);
+    socket.on('contact_removed_from_other_side', handleContactRemovedFromOtherSide);
+
+    return () => {
+      socket.off('delete_contact_success', handleDeleteSuccess);
+      socket.off('delete_contact_error', handleDeleteError);
+      socket.off('contact_removed_from_other_side', handleContactRemovedFromOtherSide);
+    };
+  }, [toast, contact.id, contact.name, onBack, onContactDeleted]); // Add dependencies
+
+  const handleDeleteContact = () => {
+    if (confirm(`Are you sure you want to delete ${contact.name} from your contacts? This action cannot be undone.`)) {
+      // Since `socket` is directly imported, it will always be defined.
+      // Its connection status is handled by `initializeSocket` and listeners in `socket.ts`.
+      socket.emit('delete_contact', { contactId: contact.id });
+    }
+  };
 
   return (
     <>
@@ -59,7 +146,7 @@ export default function ChatHeader({ contact, onBack }: ChatHeaderProps) {
               <Phone className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9">
-              <Video className="h-5 w-5" />
+              <Video className="h-5 w-9" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -72,7 +159,12 @@ export default function ChatHeader({ contact, onBack }: ChatHeaderProps) {
                 <DropdownMenuItem>Clear Chat</DropdownMenuItem>
                 <DropdownMenuItem>Search</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">Delete Contact</DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={handleDeleteContact} // Attach the handler here
+                >
+                  Delete Contact
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
